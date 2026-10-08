@@ -8,7 +8,7 @@
         body {
             background-color: #ffffff;
             color: #111111;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, BANGERS;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             margin: 0;
             padding: 40px 20px;
             display: flex;
@@ -150,7 +150,6 @@
             background: #ffffff;
         }
 
-        /* Estilo para pantalla completa */
         .fullscreen-pane {
             position: fixed !important;
             top: 0;
@@ -230,82 +229,54 @@
 
             REQUISITO DE MÚSICA: Añade obligatoriamente un elemento HTML <audio controls autoplay loop> con un enlace directo y funcional de música de fondo ambiental/relajante en formato MP3 para que suene durante la exposición.
 
-            Detalle adicional del usuario a tomar en cuenta: "${userExtra}"
+            Detalle adicional del usuario a tomar en cuenta: "\${userExtra}"
 
             REGLAS:
             - Devuelve ÚNICAMENTE el código HTML bruto (comenzando con <!DOCTYPE html>).
             - NO uses bloques de código con markdown (\`\`\`html).
-            - El diseño debe verse ordenado, con tipografía agradable, espacios limpios y secciones bien diferenciadas ideales para una presentación.`;
+            - El diseño debe verse ordenado, con tipografía agradable, espacios limpios y Matrix/secciones bien diferenciadas ideales para una presentación.`;
 
-            // Actualizado al modelo oficial gemini-3.8-flash
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            // Usamos la URL limpia para el modelo gemini-3.5-flash o gemini-3.8-flash
+            const url = `https://googleapis.com`;
 
             try {
                 const response = await fetch(url, {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "x-goog-api-key": GEMINI_API_KEY // Aquí viaja de forma correcta tu clave AQ.
                     },
                     body: JSON.stringify({
-                        contents: [
-                            {
-                                parts: [
-                                    { text: fullPrompt }
-                                ]
-                            }
-                        ]
+                        contents: [{
+                            parts: [{ text: fullPrompt }]
+                        }]
                     })
                 });
 
                 if (!response.ok) {
-                    const errData = await response.text();
-                    throw new Error(`Error HTTP ${response.status}: ${errData}`);
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || "Error en el servidor");
                 }
 
                 const data = await response.json();
                 
-                if (!data.candidates || !data.candidates[0].content.parts[0].text) {
-                    throw new Error("No se recibió respuesta válida de Gemini.");
-                }
+                // Accedemos a la respuesta correcta según la estructura de la API de Gemini
+                const generatedCode = data.candidates[0].content.parts[0].text;
 
-                let generatedHtml = data.candidates[0].content.parts[0].text;
+                // Mostramos el texto plano en el área de código
+                codeOutput.textContent = generatedCode;
 
-                generatedHtml = generatedHtml.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "");
+                // Generamos un objeto URL para renderizar el HTML real dentro del iframe
+                const blob = new Blob([generatedCode], { type: "text/html" });
+                previewFrame.src = URL.createObjectURL(blob);
 
-                statusText.textContent = "Construyendo la página (5 segundos)...";
-
-                let index = 0;
-                codeOutput.textContent = "";
-
-                // Escritura fluida exacta en 5 segundos (5000 ms)
-                let targetDuration = 5000;
-                let intervalTime = 20; 
-                let totalSteps = targetDuration / intervalTime;
-                let stepSize = Math.max(1, Math.floor(generatedHtml.length / totalSteps));
-
-                function typeWriter() {
-                    if (index < generatedHtml.length) {
-                        codeOutput.textContent += generatedHtml.substring(index, index + stepSize);
-                        index += stepSize;
-                        codeOutput.scrollTop = codeOutput.scrollHeight;
-                        
-                        const doc = previewFrame.contentDocument || previewFrame.contentWindow.document;
-                        doc.open();
-                        doc.write(codeOutput.textContent);
-                        doc.close();
-
-                        setTimeout(typeWriter, intervalTime);
-                    } else {
-                        statusText.textContent = "✔ ¡Página generada con éxito!";
-                        generateBtn.disabled = false;
-                    }
-                }
-
-                typeWriter();
+                statusText.textContent = "¡Página web generada con éxito!";
 
             } catch (error) {
                 console.error(error);
-                statusText.textContent = "❌ " + error.message;
+                statusText.textContent = "Error: " + error.message;
+                codeOutput.textContent = "Hubo un problema al conectar o procesar los datos de la API.";
+            } finally {
                 generateBtn.disabled = false;
             }
         }
