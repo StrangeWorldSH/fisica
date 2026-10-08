@@ -234,39 +234,54 @@
             REGLAS:
             - Devuelve ÚNICAMENTE el código HTML bruto (comenzando con <!DOCTYPE html>).
             - NO uses bloques de código con markdown (\`\`\`html).
-            - El diseño debe verse ordenado, con tipografía agradable, espacios limpios y Matrix/secciones bien diferenciadas ideales para una presentación.`;
+            - El diseño debe verse ordenado, con tipografía agradable, espacios limpios y secciones bien diferenciadas ideales para una presentación.`;
 
-            // Usamos la URL limpia para el modelo gemini-3.5-flash o gemini-3.8-flash
-            const url = `https://googleapis.com`;
+            // 1. SOLUCIÓN CORS: Usamos un proxy de AllOrigins para saltar el bloqueo del navegador
+            const targetUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
+            const proxyUrl = `https://allorigins.win{encodeURIComponent(targetUrl)}`;
 
             try {
-                const response = await fetch(url, {
+                // 2. Hacemos la petición a través del Proxy usando método POST simulado
+                const response = await fetch(proxyUrl, {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json",
-                        "x-goog-api-key": GEMINI_API_KEY // Aquí viaja de forma correcta tu clave AQ.
+                        "Content-Type": "application/json"
                     },
                     body: JSON.stringify({
-                        contents: [{
-                            parts: [{ text: fullPrompt }]
-                        }]
+                        // AllOrigins requiere que los parámetros reales y encabezados se envíen de este modo
+                        headers: {
+                            "Content-Type": "application/json",
+                            "x-goog-api-key": GEMINI_API_KEY
+                        },
+                        method: "POST",
+                        body: JSON.stringify({
+                            contents: [{
+                                parts: [{ text: fullPrompt }]
+                            }]
+                        })
                     })
                 });
 
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error?.message || "Error en el servidor");
+                    throw new Error("Error en la conexión con el servidor intermediario.");
                 }
 
-                const data = await response.json();
+                const proxyData = await response.json();
                 
-                // Accedemos a la respuesta correcta según la estructura de la API de Gemini
-                const generatedCode = data.candidates[0].content.parts[0].text;
+                // AllOrigins devuelve la respuesta real dentro de un string en 'contents'
+                const actualData = JSON.parse(proxyData.contents);
 
-                // Mostramos el texto plano en el área de código
+                if (actualData.error) {
+                    throw new Error(actualData.error.message || "Error devuelto por Gemini");
+                }
+                
+                // Extraer el texto generado por Gemini
+                const generatedCode = actualData.candidates[0].content.parts[0].text;
+
+                // Renderizar el código en el contenedor de texto
                 codeOutput.textContent = generatedCode;
 
-                // Generamos un objeto URL para renderizar el HTML real dentro del iframe
+                // Inyectar el código generado dentro del iframe para la Vista Previa
                 const blob = new Blob([generatedCode], { type: "text/html" });
                 previewFrame.src = URL.createObjectURL(blob);
 
@@ -274,8 +289,8 @@
 
             } catch (error) {
                 console.error(error);
-                statusText.textContent = "Error: " + error.message;
-                codeOutput.textContent = "Hubo un problema al conectar o procesar los datos de la API.";
+                statusText.textContent = "Error al generar: " + error.message;
+                codeOutput.textContent = "Hubo un problema al evadir CORS o procesar la API.";
             } finally {
                 generateBtn.disabled = false;
             }
